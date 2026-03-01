@@ -22,8 +22,10 @@ export function useQuestions(topic?: string, type?: string) {
 export function useSubmitAnswer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ questionId, answer }: { questionId: number, answer: string }) => {
-      const payload: AnswerSubmitInput = { userId: DEMO_USER_ID, answer };
+    mutationFn: async ({ questionId, answer, userId }: { questionId: number, answer: string, userId: number }) => {
+      // Use the userId passed from the component (Adrian, this fixes the mismatch)
+      const payload: AnswerSubmitInput = { userId: userId || DEMO_USER_ID, answer };
+      
       const validated = api.questions.answer.input.parse(payload);
       const url = buildUrl(api.questions.answer.path, { id: questionId });
       
@@ -33,12 +35,19 @@ export function useSubmitAnswer() {
         body: JSON.stringify(validated),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to submit answer");
-      return api.questions.answer.responses[200].parse(await res.json());
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to submit answer");
+      }
+      
+      const data = await res.json();
+console.log("Raw Server Data:", data); // This will show up in F12 console
+return data;
     },
-    onSuccess: () => {
-      // Invalidate user to update points/streaks
-      queryClient.invalidateQueries({ queryKey: [api.users.get.path, DEMO_USER_ID] });
+    onSuccess: (_, variables) => {
+      // Refreshes the user data so the UI shows the new points immediately
+      queryClient.invalidateQueries({ queryKey: [api.users.get.path, variables.userId] });
     },
   });
 }

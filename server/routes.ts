@@ -121,15 +121,16 @@ export async function registerRoutes(
   // --- MISSION ANSWER LOGIC ---
   // Handles streak math, point rewards, and Rank-Up checks
   app.post(api.questions.answer.path, async (req, res) => {
-    try {
-      const input = api.questions.answer.input.parse(req.body);
-      const questionId = Number(req.params.id);
-      const question = await storage.getQuestion(questionId);
-      const user = await storage.getUser(input.userId);
-      
-      if (!question || !user) return res.status(404).json({ message: 'Data not found' });
+  try {
+    const input = api.questions.answer.input.parse(req.body);
+    const questionId = Number(req.params.id);
+    const question = await storage.getQuestion(questionId);
+    const user = await storage.getUser(input.userId);
+    
+    if (!question || !user) return res.status(404).json({ message: 'Data not found' });
 
-      const isCorrect = input.answer === question.correctAnswer;
+    const isCorrect = input.answer === question.correctAnswer;
+    await storage.recordProgress(user.id, questionId, isCorrect);
       
       // Persist progress to the user_progress table
       await storage.recordProgress(user.id, questionId, isCorrect);
@@ -148,21 +149,27 @@ export async function registerRoutes(
 
       // Update the user's permanent stats and check for Rank promotion
       const updatedUser = await storage.updateUser(user.id, {
-        points: newPoints,
-        currentStreak: newStreak,
-        highestStreak: Math.max(user.highestStreak, newStreak),
-        rank: determineRank(newPoints),
-      });
+      points: newPoints,
+      currentStreak: newStreak,
+      rank: determineRank(newPoints),
+    });
 
-      res.json({ 
-        isCorrect, 
-        explanation: question.explanation, 
-        user: updatedUser 
-      });
-    } catch (err) {
-      res.status(500).json({ message: "Internal server error" });
+    // MAKE SURE THIS IS THE ONLY RES.JSON IN THE ENTIRE TRY BLOCK
+    res.json({ 
+  isCorrect, 
+  explanation: question.explanation || "Mission data processed.", 
+  newPoints: updatedUser.points, // Matching the 'newPoints' expectation
+  newRank: updatedUser.rank,     // Matching the 'newRank' expectation
+  newStreak: updatedUser.currentStreak // Matching the 'newStreak' expectation
+});
+
+  } catch (err) {
+    console.error("MISSION CRASH ERROR:", err);
+    if (!res.headersSent) {
+      return res.status(500).json({ message: "Internal server error" });
     }
-  });
+  }
+});
 
   // --- ARMORY (STORE) ROUTES ---
   // Fetches the catalog of available cosmetic items

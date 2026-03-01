@@ -19,6 +19,14 @@ import {
 import confetti from "canvas-confetti";
 import { DragDropMission } from "@/components/DragDropMission";
 import { FocusShield } from "@/components/FocusShield";
+interface MissionResult {
+  isCorrect: boolean;
+  explanation: string;
+  user?: {
+    currentStreak: number;
+    points: number;
+  };
+}
 
 // Sub-Component: Tactical Launch Pad for MCQs
 function TacticalLaunchPad({ options, onConfirm }: { options: string[], onConfirm: (ans: string) => void }) {
@@ -93,15 +101,37 @@ export default function Quest() {
   const currentQuestion = questions?.[currentIndex];
   
   const handleSubmit = (answer: string) => {
-    if (!currentQuestion) return;
-    submitMutation.mutate(
-      { questionId: currentQuestion.id, answer },
-      { onSuccess: (data) => {
-          setResult(data);
-          if (data.isCorrect) confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-      }}
-    );
-  };
+  if (!currentQuestion) {
+    console.error("Mission Control: No question found!");
+    return;
+  }
+
+  console.log("Attempting Launch with answer:", answer);
+
+  submitMutation.mutate(
+    { 
+      questionId: currentQuestion.id, 
+      answer: answer, 
+      userId: 1 
+    },
+    { 
+      onSuccess: (data) => {
+        console.log("Uplink Successful! Data received:", data);
+        
+        // This is the CRITICAL line. If this doesn't run, the UI won't change.
+        setResult(data); 
+
+        if (data.isCorrect) {
+          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        }
+      },
+      onError: (error) => {
+        console.error("Uplink Failed:", error);
+        alert("Mission Failed: Check your server terminal for errors.");
+      }
+    }
+  );
+};
 
   if (isLoading) return <div className="h-full flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
 
@@ -169,9 +199,10 @@ export default function Quest() {
                       <p className="text-lg font-bold text-primary">+{result.isCorrect ? (isShieldActive ? 15 : 10) : 0}</p>
                    </div>
                    <div className="flex-1 bg-white/5 p-3 rounded border border-white/10">
-                      <p className="text-[9px] uppercase text-white/40">Integrity</p>
-                      <p className="text-lg font-bold text-orange-500">{result.newStreak}🔥</p>
-                   </div>
+                    <p className="text-[9px] uppercase text-white/40">Integrity</p>
+                    {/* Change result.newStreak to result.user.currentStreak */}
+                    <p className="text-lg font-bold text-orange-500">{result.user?.currentStreak || 0}🔥</p>
+                  </div>
                 </div>
                 <Button onClick={() => { setResult(null); setCurrentIndex(prev => prev + 1); }} className="w-full bg-secondary hover:bg-secondary/80 text-black font-black">
                   PROCEED TO NEXT OBJECTIVE <ArrowRight className="ml-2 w-4 h-4" />
