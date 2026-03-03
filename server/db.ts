@@ -2,11 +2,22 @@ import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from 'ws';
 import * as schema from "@shared/schema";
+import 'dotenv/config'; // <--- This loads your .env file
 
 neonConfig.webSocketConstructor = ws;
 
-// Use the environment variable if it exists, otherwise use your Neon URL directly
-const connectionString = (process.env.DATABASE_URL || "postgresql://neondb_owner:npg_1bglIuh3qHcm@ep-crimson-wildflower-ailool5c-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require").replace(/['"]+/g, '').trim();
+/**
+ * We strictly read from process.env.
+ * If DATABASE_URL is missing, we throw an error immediately.
+ */
+const connectionString = process.env.DATABASE_URL?.replace(/['"]+/g, '').trim();
+
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL is missing! Ensure you have a .env file with DATABASE_URL=..."
+  );
+}
+
 export const pool = new Pool({ 
   connectionString: connectionString 
 });
